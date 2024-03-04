@@ -1,0 +1,70 @@
+---
+title: "tidyr_presentation"
+author: "Emma Holm-Olsen"
+date: "2024-02-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#install.packages("palmerpenguins")
+```
+
+```{r}
+library(palmerpenguins)
+library(tidyverse)
+#data(package = 'palmerpenguins')   can see which datasets are in the package
+head(penguins)
+```
+
+```{r}
+#View(penguins)
+```
+
+
+```{r}
+
+#if we want to look at a particular species' (Adelie) relationship between sex and flipper length, we can separate it out by making it its own column using pivot_wider()
+penguins %>% 
+  pivot_wider(names_from = `species`, #this info tells the function which cells you want to convert to column names
+              values_from = `flipper_length_mm`) -> penguins_wide  # this info tells the function which column name you want to convert to cells
+
+View(penguins_wide)
+```
+
+
+```{r}
+#then if you want, you can graph the relationship between sex and flipper length for Adelie species...
+penguins_wide %>% 
+  ggplot(aes(x = `sex`, y = `Adelie`))+
+  geom_point(size = 1, alpha = 0.5) 
+
+
+#male flipper length seems to be slightly longer on average
+```
+
+```{r}
+#let's do the opposite now... #if we want to look at a particular species' (Adelie) relationship to flipper length, we can separate it out by making it its own column using pivot_long()
+
+pivot_longer(data = penguins_wide,
+             cols = c("Adelie", "Gentoo", "Chinstrap"), #this information tells the function which columns you want to convert to cells
+             names_to = "species", 
+             values_to = "flipper_length_mm" #this information tells the function the new column names for the data
+             ) -> penguins_long
+
+#now we're back to what we had!
+
+#we can make some more graphs... 
+
+penguins_long %>% 
+  ggplot(aes(x = `species`, y = `flipper_length_mm`, color = sex))+
+  geom_point(size = 1, alpha = 0.5) 
+
+#of all of them, male Gentoos seem to have the longest flippers!
+```
+
+
+```{r}

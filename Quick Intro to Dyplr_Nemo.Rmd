@@ -1,0 +1,145 @@
+---
+title: "Quick Intro to Dyplr"
+author: "Helen Payne"
+date: "2024-01-31"
+output: html_document
+---
+
+1. Filter
+The filter function in dplyr is used to subset rows from a data frame based on specific conditions. It allows you to extract rows that meet certain criteria.
+
+Syntax: filter(data, condition)
+
+```{r}
+#install.packages("tidyverse")
+
+# Load the dplyr package
+library(tidyverse)
+
+# Read in data
+Nemo_BO_1 <- read_csv(here::here("Data", "Nemo_phenotypic_selection.csv"))
+
+names(Nemo_BO_1)
+
+# Filter rows - removing rows with NAs in "Date of First Flower" column
+Nemo_BO_2 <- Nemo_BO_1 %>%
+  filter(!is.na(`Date of First Flower`))
+
+
+```
+
+2. Mutate
+The mutate function in dplyr is used to create new columns or modify existing columns in a data frame. It allows you to add calculated columns to your data frame.
+
+Syntax: mutate(data, new_column = expression)
+
+```{r}
+# Add a new column 'Mean_Flower_Diameter' which calculates the average of Flower Diameters 1, 2, and 3 (these are three measurments taken on different flowers on the same plant)
+
+# Assuming your data frame is named Nemo_BO
+Nemo_BO_3 <- Nemo_BO_2 %>%
+  mutate(across(starts_with("Flower Diameter #"), as.numeric)) %>%  # Convert selected columns to numeric; the across function is used to apply a function or transformation to multiple columns of a data frame simultaneously
+  mutate(Mean_Flower_Diameter = rowMeans(select(., starts_with("Flower Diameter #")), na.rm = TRUE)) %>%  # Calculate row-wise mean, ignoring NAs (The na.rm = TRUE argument is used in the rowMeans() function. It stands for "NA remove" and it's an argument that specifies whether to remove missing values (NAs) from the input data before calculating the mean.)
+  filter(!is.na(Mean_Flower_Diameter))  # Remove rows with NA in "Mean_Flower_Diameter" column
+
+```
+
+3. case_when
+The case_when function in dplyr is used for conditional recoding of values in a data frame column. It allows you to define multiple conditions and corresponding values to be assigned based on those conditions.
+
+Syntax: case_when(
+  condition_1 ~ value_1,
+  condition_2 ~ value_2,
+  ...
+  TRUE ~ default_value
+)
+
+```{r}
+#we want to create a new category to determine if a plant is an "early", "mid" or "late" flowering individual
+
+# First we need to find the minimum and maximum values of "Days from sowing to flowering"
+min_days <- min(Nemo_BO_3$`Days from sowing to flowering`, na.rm = TRUE)
+max_days <- max(Nemo_BO_3$`Days from sowing to flowering`, na.rm = TRUE)
+
+# Calculate the range of "Days from sowing to flowering"
+range_days <- max_days - min_days
+
+# Divide the range into three equal parts
+thirds <- range_days / 3
+
+# Determine the thresholds for dividing into thirds
+early_threshold <- min_days + thirds
+mid_threshold <- min_days + 2 * thirds
+
+# Display the thresholds
+#this along with the max and min, will be used to create thresholds for early, mid, and late flowering individual plants
+early_threshold
+mid_threshold
+
+```
+
+```{r}
+
+# Categorize plants into early, mid, and late flowering based on thresholds
+Nemo_BO_4 <- Nemo_BO_3 %>%
+  mutate(Flowering_Time = case_when(
+    `Days from sowing to flowering` < early_threshold ~ "Early Flowering",
+    `Days from sowing to flowering` >= early_threshold & `Days from sowing to flowering` < mid_threshold ~ "Mid Flowering",
+    `Days from sowing to flowering` >= mid_threshold ~ "Late Flowering"
+  ))
+```
+
+Be aware: "case_when" performs vectorized operations, meaning it evaluates all conditions for each row of the data frame independently. While this is efficient for most cases, it can lead to unexpected behavior if the conditions rely on values from multiple rows or if there are missing values in the data. Also make sure to specify a default value (ie. True)
+
+
+```{r}
+#Lets plot plant phenology (Flowering Time) in a boxplot with other traits
+
+# Convert Flowering_Time_Category to factor with specific order
+Nemo_BO_4$Flowering_Time <- factor(Nemo_BO_4$Flowering_Time, levels = c("Early Flowering", "Mid Flowering", "Late Flowering"), ordered = TRUE)
+
+# Define colors for each flowering time category
+colors <- c("Early Flowering" = "yellow", "Mid Flowering" = "orange", "Late Flowering" = "red")
+
+# Create a boxplot to see if early, mid, or late flowering plants have different mean flower diameters
+## This doesn't account for date the flower was measured in the field
+ggplot(Nemo_BO_4, aes(x = Flowering_Time, y = `Mean_Flower_Diameter`, fill = Flowering_Time)) +
+  geom_boxplot() +
+  scale_fill_manual(values = colors) + #manually adjust colors
+  labs(x = "Flowering Phenology", y = "Mean Flower Diameter (cm)",) +
+  guides(fill = FALSE)
+
+# Create a boxplot to see if early, mid, or late flowering plants have different carbon isotope ratios
+##This doesn't account for date carbon 13 samples were taken in the field
+ggplot(Nemo_BO_4, aes(x = Flowering_Time, y = `δ13CVPDB (‰)`, fill = Flowering_Time)) +
+  geom_boxplot() +
+  scale_fill_manual(values = colors) +
+  labs(x = "Flowering Phenology", y = "δ13 Carbon isotope %",) +
+  guides(fill = FALSE)
+
+
+# Create a boxplot to see if early, mid, or late flowering plants produce different total fruit counts
+ggplot(Nemo_BO_4, aes(x = Flowering_Time, y = `Total number of all fruits`, fill = Flowering_Time)) +
+  geom_boxplot() +
+  scale_fill_manual(values = colors) +
+  labs(x = "Flowering Phenology", y = "Total number of all fruits",) +
+  guides(fill = FALSE)
+
+```
+```{r}
+#Testing significance between mean flower diameter and phenology
+## Perform ANOVA
+anova_Flower_diameter_time<- aov(`Mean_Flower_Diameter` ~ Flowering_Time, data = Nemo_BO_4)
+
+# Check ANOVA results
+summary(anova_Flower_diameter_time)
+
+# Perform Tukey's HSD test
+Flower_diameter_time_result <- TukeyHSD(anova_Flower_diameter_time)
+
+# Check Tukey's HSD results
+print(Flower_diameter_time_result)
+
+
+```
+

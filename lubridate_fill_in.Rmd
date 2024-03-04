@@ -1,0 +1,134 @@
+---
+title: "lubridate_fill_in"
+author: "Stephanie Copeland"
+date: "2024-02-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#### Packages ####
+library(here)
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+
+#### Read in initial raw data .csv ####
+mos_counts_raw <- read_csv(
+  here::here("mos_counts_2023.csv"))
+```
+
+### Raw Data Information ###
+- Mosquito collections taken around 10 alpine lakes in Inyo National Forest from July 15th till August 25th.
+
+#### Here are the columns and their associated characteristics ####
+- sampler - character: Initial ID of which researcher was sampling
+- SC = Steph Copeland (project lead)
+- MR = Matthew Rosen (undergraduate techician)
+- SL = Sylvia Li (undergraduate technician)
+- ST = Sachi Takishima (volunteer)
+- CC = Charlie Copeland (volunteer, Steph's dad)
+- KK = Kayla Kauffman (volunteer)
+- *also present for all sampling endeavors but not a sampler was Hugo, Steph's service dog. He is a 70lbs German Shepherd Mix*
+- Lake - character: name of lake which collections were taken. *Heart, Hidden, Flower, No_Name, Gilbert, Matlock, Marsh, LEB (Lower Eastern Brook), Little_Fish, Little_Lakes, Mack, EB (Eastern Brook)*
+- Date - character: changed to date class (see below) date at which sampling occurred
+- Time_start - time: time that sampling began
+- Time_end = time: time that sampling commenced
+- Total_time - numeric: the amount of minutes sampled, calculated by determining the number of minutes that had passed between Time_start and Time_end
+- snow_melt_mosq - numeric: count of caught mosquitos falling into this *phenotypic category*
+- black_mosq - numeric: count of caught mosquitos falling into this *phenotypic category*
+- culiseta - numneric: count of mosquitos falling into this *genera* 
+- culex_tarsalis - numeric: count of caught mosquitos falling into this *species* 
+- blood_test - numeric: number of mosquitos removed from each sampling effort to test for the content of a blood meal. These samples were inherently destroyed by puncturing the abdomen of the sample with a burn/sterile pipette tip 
+
+#### clean names to make column all lower case ####
+- this is optional, but nice so you don't have to think about capitalization while you're coding
+```{r}
+mos_counts_clean <- mos_counts_raw %>%
+  janitor::clean_names()
+```
+
+#### date cleaning and transforming with 'lubridate' ####
+- as you can see, the date column does not include year
+- also, single digit dates e.g. August 3rd are represented by 3-Aug, not 03-Aug
+- it is also currently recognized by R as a 'chr' column, not a 'date' colum
+- these are the things we need to change!
+```{r}
+### add a zero infront of any "single digit" dates with 'gsub' ###
+mos_counts_clean$date <- gsub("(\\b\\d{1}\\b)", "0\\1", mos_counts_clean$date)
+
+### remove dash b/w day and month ###
+mos_counts_clean$date <- gsub("-", "", mos_counts_clean$date)
+
+### change month to number and not letter code ####
+mos_counts_clean$date <- gsub("Jul", "07", mos_counts_clean$date)
+mos_counts_clean$date <- gsub("Aug", "08", mos_counts_clean$date)
+
+### add 2023 to each cell in the date column ####
+mos_counts_clean$date <- paste(mos_counts_clean$date, "2023", sep = "")
+```
+
+- 'gsub' is a base R function - *tbh I use chatGPT a lot when using it to get the syntax right*
+- now the data is in a format day, month, year (dmy) that 'lubridate' can recognize and can transform this column into a 'date' column, not a 'chr' column. 
+
+#### transforming date column ####\
+```{r, fill in, lubridate practice!}
+
+```
+- 'lubridate' has a lot more functions than just this one.
+- A cheat sheet on 'lubridate' should be in this weeks repro for you!
+
+### with dates you can do time-based visualizations or analysis ###
+
+#### but first, more data cleaning to do so ####
+##### More background on this work #####
+- These lakes were put in "pairs" as lakes containing fish and lakes containing no fish. 
+- 90% of the Eastern Sierra Nevada have had high alpine lakes artificially stocked with non-native trout starting in the late 1800s. 
+- These trout are voracious predators and have caused a litany of top-down as well as cross-ecosystem impacts.
+- One area previously not researched in great detail, is their impact to mosquito populations
+```{r}
+### add column that designates lakes a "fish" or "no fish"
+mos_counts_clean <- mos_counts_clean %>% 
+  mutate(fish_status = case_when(
+    lake %in% c("EB", "Hidden", "LEB", "Little_Lakes", "Matlock", "No_Name") ~ "no_fish",
+    TRUE ~ "fish"
+  ))
+
+#### group by lake and date ####
+mos_counts_time_vis <- mos_counts_clean %>% 
+  group_by(lake, date) %>% 
+  summarise(
+    time_min = sum(total_time),
+    total_snow_melt_mosq = sum(snow_melt_mosq),
+    total_black_mosq = sum(black_mosq),
+    total_culiseta = sum(culiseta, na.rm = TRUE),
+    total_culex_tarsalis = sum(culex_tarsalis),
+    total_blood_test = sum(blood_test, na.rm = TRUE)
+  )
+
+### add column of total mosquitoes by lake and date ###
+mos_counts_time_vis <- mos_counts_time_vis %>% 
+  mutate(total_sum = total_snow_melt_mosq + 
+           total_black_mosq +
+           total_culiseta +
+           total_culex_tarsalis +
+           total_blood_test)
+
+### create a column of mosquito captures per collection minute, this is a rate and can be used in analyses when sampling is uneven or not continuous ###
+mos_counts_time_vis <- mos_counts_time_vis %>% 
+  mutate(effort_min = total_sum/time_min)
+
+### round decimal place to 1 ###
+mos_counts_time_vis$effort_min <- round(mos_counts_time_vis$effort_min, 1)
+```
+
+#### now to visualize! ####
+```{r}
+
+```
+
+
+```{r}
+
+```
